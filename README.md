@@ -99,6 +99,27 @@ func (s *testSystem) Run(systems *ecs.Systems) {
 		fmt.Printf("c2.ID=%d\n", c2.ID)
 	}
 }
+
+func main() {
+	// Create world.
+	world := NewGame1World()
+	// Create logic group for systems.
+	systems := ecs.NewSystems(nil)
+	systems.
+		// Register world at map storage for use later.
+		SetWorld(Game1WorldName, world).
+		// Register system.
+		Add(&testSystem{}).
+		// Init all registered systems.
+		Init()
+	// ....
+	// Update loop.
+	systems.Run()
+	// ....
+	// Cleanup.
+	systems.Destroy()
+	world.Destroy()
+}
 ```
 
 # License
