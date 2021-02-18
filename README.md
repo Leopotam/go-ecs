@@ -36,30 +36,30 @@ type C3 struct {
 
 // game1WorldInfo is proto-interface for api generation.
 type game1WorldInfo interface {
-    // Only one private method should exist and should
-    // return all component types that this world will contain.
+	// Only one private method should exist and should
+	// return all component types that this world will contain.
 	components() (
 		C1,
 		C2,
 		C3)
 
-    // Each public method describe filter name (you can name it as you want).
+	// Each public method describe filter name (you can name it as you want).
 	WithC1(c1 C1)
-    // In-parameters works as "Include" components constraint.
+	// In-parameters works as "Include" components constraint.
 	WithC1C2(c1 C1, c2 C2)
-    // Out-parameters works as "Exclude" components constraint.
+	// Out-parameters works as "Exclude" components constraint.
 	WithC1WithoutC2(c1 C1) C2
 	WithC1WithoutC2C3(c1 C1) (C2, C3)
 }
 
-// GameWorld is new type that will be used as target for api generation.
+// Game1World is new type that will be used as target for api generation.
 type Game1World struct {
     // It should contains private "world" field with type "*ecs.World" - its important!
     // Meta tag should contains name of proto-interface type in form `ecs:"ProtoInterfaceTypeName"`
 	world *ecs.World `ecs:"game1WorldInfo"`
 }
 
-// MainWorld2Name is optional world name that can be used
+// Game1WorldName is optional world name that can be used
 // later as key in Systems worlds storage.
 const Game1WorldName = "Game1"
 
