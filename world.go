@@ -1,5 +1,15 @@
 package ecs
 
+// CustomWorld ...
+type CustomWorld interface {
+	NewEntity() Entity
+	Destroy()
+	DelEntity(entity Entity)
+	PackEntity(entity Entity) PackedEntity
+	UnpackEntity(packedEntity PackedEntity) (Entity, bool)
+	InternalWorld() *World
+}
+
 // EntityData ...
 type EntityData struct {
 	Gen        int16
@@ -16,6 +26,7 @@ type World struct {
 	componentsCount  int
 	Entities         []EntityData
 	recycledEntities IndexPool
+	leakedEntities   []Entity
 }
 
 // Component ...
@@ -32,6 +43,9 @@ func NewWorld(pools []Component, filters []Filter) *World {
 		filtersByInclude: make([][]*Filter, componentsCount),
 		filtersByExclude: make([][]*Filter, componentsCount),
 		componentsCount:  componentsCount,
+	}
+	if DEBUG {
+		w.leakedEntities = make([]Entity, 0, 256)
 	}
 	for i := range w.filters {
 		f := &w.filters[i]
@@ -89,6 +103,9 @@ func (w *World) NewEntity() Entity {
 		}
 		w.Entities = append(w.Entities, entityData)
 	}
+	if DEBUG {
+		w.leakedEntities = append(w.leakedEntities, entity)
+	}
 	return entity
 }
 
@@ -96,11 +113,13 @@ func (w *World) NewEntity() Entity {
 func (w *World) DelEntity(entity Entity) {
 	entityData := &w.Entities[entity]
 	gen := entityData.Gen
-	for _, typeID := range entityData.Mask {
+	for i := len(entityData.Mask) - 1; i >= 0; i-- {
+		typeID := entityData.Mask[i]
 		w.UpdateFilters(entity, typeID, false)
 		itemIdx := &entityData.Components[typeID]
 		w.Pools[typeID].Recycle(*itemIdx)
 		*itemIdx = 0
+		entityData.Mask = entityData.Mask[:i]
 	}
 	entityData.Mask = entityData.Mask[:0]
 	gen++
@@ -176,4 +195,16 @@ func (w *World) UpdateFilters(e Entity, componentType int, add bool) {
 			}
 		}
 	}
+}
+
+func (w *World) checkLeakedEntities() bool {
+	if len(w.leakedEntities) > 0 {
+		for _, e := range w.leakedEntities {
+			if w.Entities[e].Gen > 0 && len(w.Entities[e].Mask) == 0 {
+				return true
+			}
+		}
+		w.leakedEntities = w.leakedEntities[:0]
+	}
+	return false
 }

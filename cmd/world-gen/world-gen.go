@@ -306,6 +306,9 @@ func New{{$worldName}}() *{{$worldName}} {
 	}
 }
 
+// InternalWorld ...
+func (w {{$worldName}}) InternalWorld() *ecs.World { return w.world }
+
 // Destroy ...
 func (w *{{$worldName}}) Destroy() { w.world.Destroy(); w.world = nil }
 

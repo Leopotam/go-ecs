@@ -1,5 +1,7 @@
 package ecs
 
+import "fmt"
+
 // System ...
 type System interface {
 	SystemTypes() SystemType
@@ -53,23 +55,23 @@ type Systems struct {
 	runSystems         []RunSystem
 	destroySystems     []DestroySystem
 	postDestroySystems []PostDestroySystem
-	worlds             map[string]interface{}
+	worlds             map[string]CustomWorld
 	shared             interface{}
 }
 
 // NewSystems ...
 func NewSystems(shared interface{}) *Systems {
-	return &Systems{worlds: make(map[string]interface{}), shared: shared}
+	return &Systems{worlds: make(map[string]CustomWorld), shared: shared}
 }
 
 // World ...
-func (s *Systems) World(key string) interface{} {
+func (s *Systems) World(key string) CustomWorld {
 	w, _ := s.worlds[key]
 	return w
 }
 
 // SetWorld ...
-func (s *Systems) SetWorld(key string, world interface{}) *Systems {
+func (s *Systems) SetWorld(key string, world CustomWorld) *Systems {
 	if world != nil {
 		s.worlds[key] = world
 	} else {
@@ -136,9 +138,23 @@ func (s *Systems) Add(system System) *Systems {
 func (s *Systems) Init() {
 	for _, system := range s.preInitSystems {
 		system.PreInit(s)
+		if DEBUG {
+			for _, w := range s.worlds {
+				if w.InternalWorld().checkLeakedEntities() {
+					panic(fmt.Sprintf("entity leak detected after %T.PreInit()", system))
+				}
+			}
+		}
 	}
 	for _, system := range s.initSystems {
 		system.Init(s)
+		if DEBUG {
+			for _, w := range s.worlds {
+				if w.InternalWorld().checkLeakedEntities() {
+					panic(fmt.Sprintf("entity leak detected after %T.Init()", system))
+				}
+			}
+		}
 	}
 }
 
@@ -146,6 +162,13 @@ func (s *Systems) Init() {
 func (s *Systems) Run() {
 	for _, system := range s.runSystems {
 		system.Run(s)
+		if DEBUG {
+			for _, w := range s.worlds {
+				if w.InternalWorld().checkLeakedEntities() {
+					panic(fmt.Sprintf("entity leak detected after %T.Run()", system))
+				}
+			}
+		}
 	}
 }
 
@@ -153,8 +176,22 @@ func (s *Systems) Run() {
 func (s *Systems) Destroy() {
 	for _, system := range s.destroySystems {
 		system.Destroy(s)
+		if DEBUG {
+			for _, w := range s.worlds {
+				if w.InternalWorld().checkLeakedEntities() {
+					panic(fmt.Sprintf("entity leak detected after %T.Destroy()", system))
+				}
+			}
+		}
 	}
 	for _, system := range s.postDestroySystems {
 		system.PostDestroy(s)
+		if DEBUG {
+			for _, w := range s.worlds {
+				if w.InternalWorld().checkLeakedEntities() {
+					panic(fmt.Sprintf("entity leak detected after %T.PostDestroy()", system))
+				}
+			}
+		}
 	}
 }

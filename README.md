@@ -82,7 +82,7 @@ func (s *testSystem) SystemTypes() ecs.SystemType {
 }
 
 func (s *testSystem) Init(systems *ecs.Systems) {
-	world := *systems.World(Game1WorldName).(*Game1World)
+	world := systems.World(Game1WorldName).(*Game1World)
 	entity := world.NewEntity()
 	c1 := world.SetC1(entity)
 	c1.ID = 123
@@ -91,7 +91,7 @@ func (s *testSystem) Init(systems *ecs.Systems) {
 }
 
 func (s *testSystem) Run(systems *ecs.Systems) {
-	world := *systems.World(Game1WorldName).(*Game1World)
+	world := systems.World(Game1WorldName).(*Game1World)
 	for _, entity := range world.WithC1C2().Entities() {
 		c1 := world.GetC1(entity)
 		c2 := world.GetC2(entity)
