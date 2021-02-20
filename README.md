@@ -1,4 +1,4 @@
-# LecsGO - Simple Entity Component System framework powered by Golang.
+# LecsGO - Simple Entity Component System framework powered by Golang
 
 Framework name is consonant with phrase "Let's GO", but with "ecs" acronym for "EntityComponentSystem".
 

@@ -37,16 +37,14 @@ func NewFilter(include []int, exclude []int, capacity int) *Filter {
 	}
 }
 
-// Lock returns entitis collection and
-// increases Lock() counter to protect
-// returned entities collection from changes.
+// Lock returns entities collection and increases Lock() counter
+// to protect collection from changes.
 func (f *Filter) Lock() []Entity {
 	f.lockCount++
 	return f.entities
 }
 
-// Unlock decreases Lock() counter and flush
-// changed entities if they presents.
+// Unlock decreases Lock() counter and flush entity changes if presents.
 func (f *Filter) Unlock() {
 	f.lockCount--
 	if DEBUG && f.lockCount < 0 {
