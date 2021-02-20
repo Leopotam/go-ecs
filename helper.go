@@ -1,23 +1,31 @@
+// ----------------------------------------------------------------------------
+// The MIT License
+// LecsGO - Entity Component System framework powered by Golang.
+// Url: https://github.com/Leopotam/go-ecs
+// Copyright (c) 2021 Leopotam <leopotam@gmail.com>
+// ----------------------------------------------------------------------------
+
 package ecs
 
-// IndexPool ...
+// IndexPool - pool for entity IDs.
 type IndexPool struct {
 	items []Entity
 }
 
-// NewIndexPool ...
+// NewIndexPool returns new instance of IndexPool.
 func NewIndexPool(cap int) *IndexPool {
 	return &IndexPool{
 		items: make([]Entity, 0, cap),
 	}
 }
 
-// Push ...
+// Push saves index in pool for use later.
 func (p *IndexPool) Push(idx Entity) {
 	p.items = append(p.items, idx)
 }
 
-// Pop ...
+// Pop returns saved index from pool
+// or -1 if pool is empty.
 func (p *IndexPool) Pop() Entity {
 	lastIdx := len(p.items) - 1
 	if lastIdx < 0 {

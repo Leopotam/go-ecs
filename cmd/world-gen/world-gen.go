@@ -1,3 +1,10 @@
+// ----------------------------------------------------------------------------
+// The MIT License
+// LecsGO - Entity Component System framework powered by Golang.
+// Url: https://github.com/Leopotam/go-ecs
+// Copyright (c) 2021 Leopotam <leopotam@gmail.com>
+// ----------------------------------------------------------------------------
+
 package main
 
 import (
@@ -291,10 +298,10 @@ import (
 )
 {{ range $worldIdx,$world := .Worlds }}
 {{- $worldName := $world.Name }}
-// New{{$worldName}} ...
+// New{{$worldName}} returns new instance of {{$worldName}}.
 func New{{$worldName}}() *{{$worldName}} {
 	return &{{$worldName}}{
-		world: ecs.NewWorld([]ecs.Component{
+		world: ecs.NewWorld([]ecs.ComponentPool{
 {{- range $i,$c := $world.Components }}
 		new{{$c.Name}}Pool(64, 64),
 {{- end}}
@@ -306,24 +313,24 @@ func New{{$worldName}}() *{{$worldName}} {
 	}
 }
 
-// InternalWorld ...
+// InternalWorld returns internal ecs.World instance.
 func (w {{$worldName}}) InternalWorld() *ecs.World { return w.world }
 
-// Destroy ...
+// Destroy processes cleanup of data inside world.
 func (w *{{$worldName}}) Destroy() { w.world.Destroy(); w.world = nil }
 
-// NewEntity ...
+// NewEntity creates and returns new entity inside world.
 func (w {{$worldName}}) NewEntity() ecs.Entity {
 	return w.world.NewEntity()
 }
 
-// DelEntity ...
+// DelEntity removes entity from world if exists. All attached components will be removed first.
 func (w {{$worldName}}) DelEntity(entity ecs.Entity) { w.world.DelEntity(entity) }
 
-// PackEntity ...
+// PackEntity packs Entity to save outside from world.
 func (w {{$worldName}}) PackEntity(entity ecs.Entity) ecs.PackedEntity { return w.world.PackEntity(entity) }
 
-// UnpackEntity ...
+// UnpackEntity tries to unpack data to Entity, returns unpacked entity and success of operation.
 func (w {{$worldName}}) UnpackEntity(packedEntity ecs.PackedEntity) (ecs.Entity, bool) {
 	return w.world.UnpackEntity(packedEntity)
 }
@@ -352,11 +359,11 @@ func (p *pool{{$c.Name}}) Recycle(idx int32) {
 	p.recycled.Push(idx)
 }
 
-// Set{{$c.Name}} ...
+// Set{{$c.Name}} adds or returns exist {{$c.Name}} component on entity.
 func (w {{$worldName}}) Set{{$c.Name}}(entity ecs.Entity) *{{$c.Type}} {
 	entityData := &w.world.Entities[entity]
 	itemIdx := &entityData.Components[{{$i}}]
-	pool := w.world.Pool({{$i}}).(*pool{{$c.Name}})
+	pool := w.world.Pools[{{$i}}].(*pool{{$c.Name}})
 	if *itemIdx == 0 {
 		*itemIdx = pool.new()
 		maskIdx := sort.Search(len(entityData.Mask), func(i int) bool { return entityData.Mask[i] > {{$i}} })
@@ -368,23 +375,24 @@ func (w {{$worldName}}) Set{{$c.Name}}(entity ecs.Entity) *{{$c.Type}} {
 	return &pool.items[*itemIdx]
 }
 
-// Get{{$c.Name}} ...
+// Get{{$c.Name}} returns exist {{$c.Name}} component on entity or nil.
 func (w {{$worldName}}) Get{{$c.Name}}(entity ecs.Entity) *{{$c.Type}} {
 	idx := w.world.Entities[entity].Components[{{$i}}]
 	if idx == 0 {
 		return nil
 	}
-	return &w.world.Pool({{$i}}).(*pool{{$c.Name}}).items[idx]
+	return &w.world.Pools[{{$i}}].(*pool{{$c.Name}}).items[idx]
 }
 
-// Del{{$c.Name}} ...
+// Del{{$c.Name}} removes {{$c.Name}} component or do nothing.
+// If entity is empty after removing - it will be destroyed automatically.
 func (w {{$worldName}}) Del{{$c.Name}}(entity ecs.Entity) {
 	entityData := &w.world.Entities[entity]
 	itemIdx := &entityData.Components[{{$i}}]
 	if *itemIdx != 0 {
 		if len(entityData.Mask) > 1 {
 			w.world.UpdateFilters(entity, {{$i}}, false)
-			pool := w.world.Pool({{$i}}).(*pool{{$c.Name}})
+			pool := w.world.Pools[{{$i}}].(*pool{{$c.Name}})
 			pool.Recycle(*itemIdx)
 			*itemIdx = 0
 			maskLen := len(entityData.Mask)
@@ -398,6 +406,7 @@ func (w {{$worldName}}) Del{{$c.Name}}(entity ecs.Entity) {
 }
 {{- end}}
 {{- range $i,$f := $world.Filters }}
+// {{$f.Name}} returns user filter.
 func (w {{$worldName}}) {{$f.Name}}() *ecs.Filter {
 	return w.world.Filter({{$i}})
 }

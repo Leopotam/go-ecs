@@ -1,6 +1,13 @@
+// ----------------------------------------------------------------------------
+// The MIT License
+// LecsGO - Entity Component System framework powered by Golang.
+// Url: https://github.com/Leopotam/go-ecs
+// Copyright (c) 2021 Leopotam <leopotam@gmail.com>
+// ----------------------------------------------------------------------------
+
 package ecs
 
-// CustomWorld ...
+// CustomWorld - interface for all user worlds.
 type CustomWorld interface {
 	NewEntity() Entity
 	Destroy()
@@ -10,16 +17,16 @@ type CustomWorld interface {
 	InternalWorld() *World
 }
 
-// EntityData ...
+// EntityData - container for keeping internal entity data.
 type EntityData struct {
 	Gen        int16
 	Components []int32
 	Mask       []int
 }
 
-// World ...
+// World - container for all data.
 type World struct {
-	Pools            []Component
+	Pools            []ComponentPool
 	filters          []Filter
 	filtersByInclude [][]*Filter
 	filtersByExclude [][]*Filter
@@ -29,13 +36,13 @@ type World struct {
 	leakedEntities   []Entity
 }
 
-// Component ...
-type Component interface {
+// ComponentPool - interface for all user component pools.
+type ComponentPool interface {
 	Recycle(idx Entity)
 }
 
-// NewWorld ...
-func NewWorld(pools []Component, filters []Filter) *World {
+// NewWorld returns new instance of World.
+func NewWorld(pools []ComponentPool, filters []Filter) *World {
 	componentsCount := len(pools)
 	w := World{
 		Pools:            pools,
@@ -67,7 +74,7 @@ func NewWorld(pools []Component, filters []Filter) *World {
 	return &w
 }
 
-// Destroy ...
+// Destroy processes cleanup of data inside world.
 func (w *World) Destroy() {
 	for i := 0; i < len(w.Entities); i++ {
 		if w.Entities[i].Gen > 0 {
@@ -76,17 +83,12 @@ func (w *World) Destroy() {
 	}
 }
 
-// Pool ...
-func (w *World) Pool(idx int) Component {
-	return w.Pools[idx]
-}
-
-// Filter ...
+// Filter returns registered filter by index.
 func (w *World) Filter(idx int) *Filter {
 	return &w.filters[idx]
 }
 
-// NewEntity ...
+// NewEntity creates and returns new entity inside world.
 func (w *World) NewEntity() Entity {
 	var entity Entity = w.recycledEntities.Pop()
 	if entity >= 0 {
@@ -109,7 +111,8 @@ func (w *World) NewEntity() Entity {
 	return entity
 }
 
-// DelEntity ...
+// DelEntity removes exist entity from world.
+// All attached components will be removed first.
 func (w *World) DelEntity(entity Entity) {
 	entityData := &w.Entities[entity]
 	gen := entityData.Gen
@@ -130,13 +133,14 @@ func (w *World) DelEntity(entity Entity) {
 	w.recycledEntities.Push(entity)
 }
 
-// PackEntity ...
+// PackEntity packs Entity to save outside from world.
 func (w *World) PackEntity(entity Entity) PackedEntity {
 	entityData := &w.Entities[entity]
 	return PackedEntity{gen: entityData.Gen, idx: entity}
 }
 
-// UnpackEntity ...
+// UnpackEntity tries to unpack data to Entity,
+// returns unpacked entity and success of operation.
 func (w *World) UnpackEntity(packedEntity PackedEntity) (Entity, bool) {
 	entityData := &w.Entities[packedEntity.idx]
 	if packedEntity.gen != entityData.Gen {
@@ -145,7 +149,7 @@ func (w *World) UnpackEntity(packedEntity PackedEntity) (Entity, bool) {
 	return packedEntity.idx, true
 }
 
-// UpdateFilters ...
+// UpdateFilters updates all compatible with requested component filters.
 func (w *World) UpdateFilters(e Entity, componentType int, add bool) {
 	entityData := &w.Entities[e]
 	includeList := w.filtersByInclude[componentType]
@@ -205,6 +209,15 @@ func (w *World) checkLeakedEntities() bool {
 			}
 		}
 		w.leakedEntities = w.leakedEntities[:0]
+	}
+	return false
+}
+
+func (w *World) checkLeakedFilters() bool {
+	for _, f := range w.filters {
+		if f.lockCount > 0 {
+			return true
+		}
 	}
 	return false
 }

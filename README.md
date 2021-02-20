@@ -1,12 +1,15 @@
-[![discord](https://img.shields.io/discord/404358247621853185.svg?label=enter%20to%20discord%20server&style=for-the-badge&logo=discord)](https://discord.gg/5GZVde6)
+# LecsGO - Simple Entity Component System framework powered by Golang.
 
-# LeoECS GO - Simple golang Entity Component System framework.
+Framework name is consonant with phrase "Let's GO", but with "ecs" acronym for "EntityComponentSystem".
 
 > **Important!** Don't forget to use `DEBUG` (default) builds for development and `RELEASE` (with `-tags RELEASE`) builds in production: all internal sanitize checks works only in `DEBUG` builds and eleminated for performance reasons in `RELEASE`.
 
 > **Important!** Ecs core is **not goroutine-friendly** and will never be! If you need multithread-processing - you should implement it on your side as part of ecs-system.
 
 > **Important!** In development stage, not recommended to production use!
+
+# Socials
+[![discord](https://img.shields.io/discord/404358247621853185.svg?label=enter%20to%20discord%20server&style=for-the-badge&logo=discord)](https://discord.gg/5GZVde6)
 
 # Installation
 
@@ -92,11 +95,29 @@ func (s *testSystem) Init(systems *ecs.Systems) {
 
 func (s *testSystem) Run(systems *ecs.Systems) {
 	world := systems.World(Game1WorldName).(*Game1World)
-	for _, entity := range world.WithC1C2().Entities() {
+	
+	// First way to process filtered data:
+	// you should lock filter with Lock()
+	// to protect entities collection from
+	// changes during processing and unlock
+	// with Unlock() after it.
+	for _, entity := range world.WithC1C2().Lock() {
 		c1 := world.GetC1(entity)
 		c2 := world.GetC2(entity)
 		fmt.Printf("c1.ID=%d\n", c1.ID)
 		fmt.Printf("c2.ID=%d\n", c2.ID)
+	}
+	world.WithC1C2().Unlock()
+
+	// Second way to process filtered data,
+	// Lock()/Unlock() will be called automatically.
+	world.WithC1C2().Entities(func (entities []ecs.Entity) {
+		for _, entity := range entities {
+			c1 := world.GetC1(entity)
+			c2 := world.GetC2(entity)
+			fmt.Printf("c1.ID=%d\n", c1.ID)
+			fmt.Printf("c2.ID=%d\n", c2.ID)
+		}
 	}
 }
 

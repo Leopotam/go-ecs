@@ -1,54 +1,62 @@
+// ----------------------------------------------------------------------------
+// The MIT License
+// LecsGO - Entity Component System framework powered by Golang.
+// Url: https://github.com/Leopotam/go-ecs
+// Copyright (c) 2021 Leopotam <leopotam@gmail.com>
+// ----------------------------------------------------------------------------
+
 package ecs
 
 import "fmt"
 
-// System ...
+// System - base interface for all systems.
 type System interface {
 	SystemTypes() SystemType
 }
 
-// PreInitSystem ...
+// PreInitSystem - interface for PreInit() systems.
 type PreInitSystem interface {
 	PreInit(systems *Systems)
 }
 
-// InitSystem ...
+// InitSystem - interface for Init() systems.
 type InitSystem interface {
 	Init(systems *Systems)
 }
 
-// RunSystem ...
+// RunSystem - interface for Run() systems.
 type RunSystem interface {
 	Run(systems *Systems)
 }
 
-// DestroySystem ...
+// DestroySystem - interface for Destroy() systems.
 type DestroySystem interface {
 	Destroy(systems *Systems)
 }
 
-// PostDestroySystem ...
+// PostDestroySystem - interface for PostDestroy() systems.
 type PostDestroySystem interface {
 	PostDestroy(systems *Systems)
 }
 
-// SystemType ...
+// SystemType - bit flags for
+// supported types definition.
 type SystemType uint8
 
 const (
-	// PreInitSystemType ...
+	// PreInitSystemType declares PreInitSystem support.
 	PreInitSystemType SystemType = 1 << iota
-	// InitSystemType ...
+	// InitSystemType declares InitSystem support.
 	InitSystemType
-	// RunSystemType ...
+	// RunSystemType declares RunSystem support.
 	RunSystemType
-	// DestroySystemType ...
+	// DestroySystemType declares DestroySystem support.
 	DestroySystemType
-	// PostDestroySystemType ...
+	// PostDestroySystemType declares PostDestroySystem support.
 	PostDestroySystemType
 )
 
-// Systems ...
+// Systems - container for systems, worlds, shared data.
 type Systems struct {
 	preInitSystems     []PreInitSystem
 	initSystems        []InitSystem
@@ -59,18 +67,18 @@ type Systems struct {
 	shared             interface{}
 }
 
-// NewSystems ...
+// NewSystems returns new instance of Systems.
 func NewSystems(shared interface{}) *Systems {
 	return &Systems{worlds: make(map[string]CustomWorld), shared: shared}
 }
 
-// World ...
+// World returns instance of user world saved with SetWorld().
 func (s *Systems) World(key string) CustomWorld {
 	w, _ := s.worlds[key]
 	return w
 }
 
-// SetWorld ...
+// SetWorld saves instance of user world to use later inside systems.
 func (s *Systems) SetWorld(key string, world CustomWorld) *Systems {
 	if world != nil {
 		s.worlds[key] = world
@@ -80,12 +88,13 @@ func (s *Systems) SetWorld(key string, world CustomWorld) *Systems {
 	return s
 }
 
-// Shared ...
+// Shared returns optional shared user data.
 func (s *Systems) Shared() interface{} {
 	return s.shared
 }
 
-// Add ...
+// Add registers user system based on SystemType flags.
+// System should implements interface for all requested types.
 func (s *Systems) Add(system System) *Systems {
 	types := system.SystemTypes()
 	if DEBUG && types == 0 {
@@ -94,7 +103,7 @@ func (s *Systems) Add(system System) *Systems {
 	if types&PreInitSystemType != 0 {
 		if DEBUG {
 			if _, ok := system.(PreInitSystem); !ok {
-				panic("system requested PreInitSystemType but not implemented it")
+				panic(`system requested PreInitSystemType but not implemented "PreInitSystem"`)
 			}
 		}
 		s.preInitSystems = append(s.preInitSystems, system.(PreInitSystem))
@@ -102,7 +111,7 @@ func (s *Systems) Add(system System) *Systems {
 	if types&InitSystemType != 0 {
 		if DEBUG {
 			if _, ok := system.(InitSystem); !ok {
-				panic("system requested InitSystemType but not implemented it")
+				panic(`system requested InitSystemType but not implemented "InitSystem"`)
 			}
 		}
 		s.initSystems = append(s.initSystems, system.(InitSystem))
@@ -110,7 +119,7 @@ func (s *Systems) Add(system System) *Systems {
 	if types&RunSystemType != 0 {
 		if DEBUG {
 			if _, ok := system.(RunSystem); !ok {
-				panic("system requested RunSystemType but not implemented it")
+				panic(`system requested RunSystemType but not implemented "RunSystem"`)
 			}
 		}
 		s.runSystems = append(s.runSystems, system.(RunSystem))
@@ -118,7 +127,7 @@ func (s *Systems) Add(system System) *Systems {
 	if types&DestroySystemType != 0 {
 		if DEBUG {
 			if _, ok := system.(DestroySystem); !ok {
-				panic("system requested DestroySystemType but not implemented it")
+				panic(`system requested DestroySystemType but not implemented "DestroySystem"`)
 			}
 		}
 		s.destroySystems = append(s.destroySystems, system.(DestroySystem))
@@ -126,7 +135,7 @@ func (s *Systems) Add(system System) *Systems {
 	if types&PostDestroySystemType != 0 {
 		if DEBUG {
 			if _, ok := system.(PostDestroySystem); !ok {
-				panic("system requested PostDestroySystemType but not implemented it")
+				panic(`system requested PostDestroySystemType but not implemented "PostDestroySystem"`)
 			}
 		}
 		s.postDestroySystems = append(s.postDestroySystems, system.(PostDestroySystem))
@@ -134,7 +143,7 @@ func (s *Systems) Add(system System) *Systems {
 	return s
 }
 
-// Init ...
+// Init processes PreInitSystem / InitSystem systems execution.
 func (s *Systems) Init() {
 	for _, system := range s.preInitSystems {
 		system.PreInit(s)
@@ -142,6 +151,9 @@ func (s *Systems) Init() {
 			for _, w := range s.worlds {
 				if w.InternalWorld().checkLeakedEntities() {
 					panic(fmt.Sprintf("entity leak detected after %T.PreInit()", system))
+				}
+				if w.InternalWorld().checkLeakedFilters() {
+					panic(fmt.Sprintf("filter invalid lock/unlock detected after %T.PreInit()", system))
 				}
 			}
 		}
@@ -153,12 +165,15 @@ func (s *Systems) Init() {
 				if w.InternalWorld().checkLeakedEntities() {
 					panic(fmt.Sprintf("entity leak detected after %T.Init()", system))
 				}
+				if w.InternalWorld().checkLeakedFilters() {
+					panic(fmt.Sprintf("filter invalid lock/unlock detected after %T.Init()", system))
+				}
 			}
 		}
 	}
 }
 
-// Run ...
+// Run processes RunSystem systems execution.
 func (s *Systems) Run() {
 	for _, system := range s.runSystems {
 		system.Run(s)
@@ -167,12 +182,15 @@ func (s *Systems) Run() {
 				if w.InternalWorld().checkLeakedEntities() {
 					panic(fmt.Sprintf("entity leak detected after %T.Run()", system))
 				}
+				if w.InternalWorld().checkLeakedFilters() {
+					panic(fmt.Sprintf("filter invalid lock/unlock detected after %T.Run()", system))
+				}
 			}
 		}
 	}
 }
 
-// Destroy ...
+// Destroy processes DestroySystem / PostDestroySystem systems execution.
 func (s *Systems) Destroy() {
 	for _, system := range s.destroySystems {
 		system.Destroy(s)
@@ -180,6 +198,9 @@ func (s *Systems) Destroy() {
 			for _, w := range s.worlds {
 				if w.InternalWorld().checkLeakedEntities() {
 					panic(fmt.Sprintf("entity leak detected after %T.Destroy()", system))
+				}
+				if w.InternalWorld().checkLeakedFilters() {
+					panic(fmt.Sprintf("filter invalid lock/unlock detected after %T.Destroy()", system))
 				}
 			}
 		}
@@ -190,6 +211,9 @@ func (s *Systems) Destroy() {
 			for _, w := range s.worlds {
 				if w.InternalWorld().checkLeakedEntities() {
 					panic(fmt.Sprintf("entity leak detected after %T.PostDestroy()", system))
+				}
+				if w.InternalWorld().checkLeakedFilters() {
+					panic(fmt.Sprintf("filter invalid lock/unlock detected after %T.PostDestroy()", system))
 				}
 			}
 		}
