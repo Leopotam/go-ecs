@@ -97,8 +97,10 @@ func (s *Systems) Shared() interface{} {
 // System should implements interface for all requested types.
 func (s *Systems) Add(system System) *Systems {
 	types := system.SystemTypes()
-	if DEBUG && types == 0 {
-		panic("system doesnt requested any SystemType support")
+	if DEBUG {
+		if types == 0 {
+			panic("system doesnt requested any SystemType support")
+		}
 	}
 	if types&PreInitSystemType != 0 {
 		if DEBUG {

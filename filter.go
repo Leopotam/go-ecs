@@ -14,8 +14,29 @@ type lockedChange struct {
 	Add    bool
 }
 
-// Filter - special container for keeping
-// filtered entities based on constraints.
+// FilterIter - iterator over filtered entities.
+type FilterIter struct {
+	filter *Filter
+	len    int
+	idx    int
+}
+
+// Next moves to next filtered entity and return success of operation.
+func (fi *FilterIter) Next() bool {
+	fi.idx++
+	if fi.idx < fi.len {
+		return true
+	}
+	fi.filter.unlock()
+	return false
+}
+
+// Entity returns current entity.
+func (fi FilterIter) Entity() Entity {
+	return fi.filter.entities[fi.idx]
+}
+
+// Filter - container for keeping constraints-filtered entities.
 type Filter struct {
 	include       []int
 	exclude       []int
@@ -37,41 +58,17 @@ func NewFilter(include []int, exclude []int, capacity int) *Filter {
 	}
 }
 
-// Lock returns entities collection and increases Lock() counter
-// to protect collection from changes.
-func (f *Filter) Lock() []Entity {
+// Iter returns new instance of iterator over filtered entities.
+func (f *Filter) Iter() FilterIter {
 	f.lockCount++
-	return f.entities
-}
-
-// Unlock decreases Lock() counter and flush entity changes if presents.
-func (f *Filter) Unlock() {
-	f.lockCount--
-	if DEBUG && f.lockCount < 0 {
-		panic("filter lock/unlock balance broken")
-	}
-	if f.lockCount == 0 {
-		for i := 0; i < len(f.lockedChanges); i++ {
-			v := f.lockedChanges[i]
-			if v.Add {
-				f.add(v.Entity)
-			} else {
-				f.remove(v.Entity)
-			}
-		}
-		f.lockedChanges = f.lockedChanges[:0]
+	return FilterIter{
+		filter: f,
+		len:    len(f.entities),
+		idx:    -1,
 	}
 }
 
-// Entities provides entities collection
-// with automatic Lock()/Unlock() calls.
-func (f *Filter) Entities(cb func([]Entity)) {
-	cb(f.Lock())
-	f.Unlock()
-}
-
-// Count returns amount of entities
-// inside filter.
+// Count returns amount of filtered entities.
 func (f *Filter) Count() int {
 	return len(f.entities)
 }
@@ -112,6 +109,26 @@ func (f *Filter) remove(e Entity) {
 		// copy(f.entities[idx:], f.entities[idx+1:])
 
 		delete(f.entitiesMap, e)
+	}
+}
+
+func (f *Filter) unlock() {
+	f.lockCount--
+	if DEBUG {
+		if f.lockCount < 0 {
+			panic("filter lock/unlock balance broken")
+		}
+	}
+	if f.lockCount == 0 {
+		for i := 0; i < len(f.lockedChanges); i++ {
+			v := f.lockedChanges[i]
+			if v.Add {
+				f.add(v.Entity)
+			} else {
+				f.remove(v.Entity)
+			}
+		}
+		f.lockedChanges = f.lockedChanges[:0]
 	}
 }
 

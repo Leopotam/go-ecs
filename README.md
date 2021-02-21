@@ -95,29 +95,13 @@ func (s *testSystem) Init(systems *ecs.Systems) {
 
 func (s *testSystem) Run(systems *ecs.Systems) {
 	world := systems.World(Game1WorldName).(*Game1World)
-	
-	// First way to process filtered data:
-	// you should lock filter with Lock()
-	// to protect entities collection from
-	// changes during processing and unlock
-	// with Unlock() after it.
-	for _, entity := range world.WithC1C2().Lock() {
+	// You can iterate over filtered entities in this way:	
+	for it := world.WithC1C2().Iter(); it.Next(); {
+		entity := it.Entity()
 		c1 := world.GetC1(entity)
 		c2 := world.GetC2(entity)
 		fmt.Printf("c1.ID=%d\n", c1.ID)
 		fmt.Printf("c2.ID=%d\n", c2.ID)
-	}
-	world.WithC1C2().Unlock()
-
-	// Second way to process filtered data,
-	// Lock()/Unlock() will be called automatically.
-	world.WithC1C2().Entities(func (entities []ecs.Entity) {
-		for _, entity := range entities {
-			c1 := world.GetC1(entity)
-			c2 := world.GetC2(entity)
-			fmt.Printf("c1.ID=%d\n", c1.ID)
-			fmt.Printf("c2.ID=%d\n", c2.ID)
-		}
 	}
 }
 
