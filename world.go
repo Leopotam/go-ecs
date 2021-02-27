@@ -50,6 +50,8 @@ func NewWorld(pools []ComponentPool, filters []Filter) *World {
 		filtersByInclude: make([][]*Filter, componentsCount),
 		filtersByExclude: make([][]*Filter, componentsCount),
 		componentsCount:  componentsCount,
+		Entities:         make([]EntityData, 0, 512),
+		recycledEntities: *NewIndexPool(512),
 	}
 	if DEBUG {
 		w.leakedEntities = make([]Entity, 0, 256)
