@@ -10,6 +10,7 @@ Framework name is consonant with phrase "Let's GO", but with "ecs" acronym for "
 
 # Socials
 [![discord](https://img.shields.io/discord/404358247621853185.svg?label=enter%20to%20discord%20server&style=for-the-badge&logo=discord)](https://discord.gg/5GZVde6)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Leopotam/go-ecs?style=for-the-badge)](https://goreportcard.com/report/github.com/Leopotam/go-ecs)
 
 # Installation
 
