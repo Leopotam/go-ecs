@@ -7,31 +7,63 @@
 
 package ecs
 
-// IndexPool - pool for entity IDs.
-type IndexPool struct {
-	items []Entity
-}
+// indexPool - pool for entity IDs.
+type indexPool []Entity
 
-// NewIndexPool returns new instance of IndexPool.
-func NewIndexPool(cap int) *IndexPool {
-	return &IndexPool{
-		items: make([]Entity, 0, cap),
-	}
+// newIndexPool returns new instance of IndexPool.
+func newIndexPool(cap int) *indexPool {
+	var pool indexPool = make([]Entity, 0, cap)
+	return &pool
 }
 
 // Push saves index in pool for use later.
-func (p *IndexPool) Push(idx Entity) {
-	p.items = append(p.items, idx)
+func (p *indexPool) Push(idx Entity) {
+	*p = append(*p, idx)
 }
 
-// Pop returns saved index from pool
-// or -1 if pool is empty.
-func (p *IndexPool) Pop() Entity {
-	lastIdx := len(p.items) - 1
+// Pop returns saved index from pool.
+func (p *indexPool) Pop() (Entity, bool) {
+	lastIdx := len(*p) - 1
 	if lastIdx < 0 {
-		return -1
+		return 0, false
 	}
-	lastV := p.items[lastIdx]
-	p.items = p.items[:lastIdx]
-	return lastV
+	lastV := (*p)[lastIdx]
+	*p = (*p)[:lastIdx]
+	return lastV, true
+}
+
+const chunkSize = 64
+
+type chunkType uint64
+
+// BitSet is collection of bits.
+type BitSet []chunkType
+
+// NewBitSet creates new BitSet instance.
+func NewBitSet(cap uint16) BitSet {
+	return make([]chunkType, (cap-1)/chunkSize+1)
+}
+
+// Clear sets all bits to 0.
+func (s *BitSet) Clear() {
+	for i, iMax := 0, len(*s); i < iMax; i++ {
+		(*s)[i] = 0
+	}
+}
+
+// Set ensures that the given bit is set in the BitSet.
+func (s *BitSet) Set(i uint16) {
+	(*s)[i/chunkSize] |= 1 << (i % chunkSize)
+}
+
+// Unset ensures that the given bit is cleared (not set) in the BitSet.
+func (s *BitSet) Unset(i uint16) {
+	if len(*s) >= int(i/chunkSize+1) {
+		(*s)[i/chunkSize] &^= 1 << (i % chunkSize)
+	}
+}
+
+// Get returns true if the given bit is set, false if it is cleared.
+func (s *BitSet) Get(i uint16) bool {
+	return (*s)[i/chunkSize]&(1<<(i%chunkSize)) != 0
 }

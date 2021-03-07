@@ -19,9 +19,9 @@ type CustomWorld interface {
 
 // EntityData - container for keeping internal entity data.
 type EntityData struct {
-	Gen        int16
-	Components []int32
-	Mask       []int
+	Gen     int16
+	BitMask BitSet
+	Mask    []uint16
 }
 
 // World - container for all data.
@@ -30,28 +30,29 @@ type World struct {
 	filters          []Filter
 	filtersByInclude [][]*Filter
 	filtersByExclude [][]*Filter
-	componentsCount  int
+	componentsCount  uint16
 	Entities         []EntityData
-	recycledEntities IndexPool
+	recycledEntities indexPool
 	leakedEntities   []Entity
 }
 
 // ComponentPool - interface for all user component pools.
 type ComponentPool interface {
-	Recycle(idx Entity)
+	New()
+	Recycle(idx uint32)
 }
 
 // NewWorld returns new instance of World.
-func NewWorld(pools []ComponentPool, filters []Filter) *World {
-	componentsCount := len(pools)
+func NewWorld(entitiesCount uint32, pools []ComponentPool, filters []Filter) *World {
+	componentsCount := uint16(len(pools))
 	w := World{
 		Pools:            pools,
 		filters:          filters,
 		filtersByInclude: make([][]*Filter, componentsCount),
 		filtersByExclude: make([][]*Filter, componentsCount),
 		componentsCount:  componentsCount,
-		Entities:         make([]EntityData, 0, 512),
-		recycledEntities: *NewIndexPool(512),
+		Entities:         make([]EntityData, 0, entitiesCount),
+		recycledEntities: *newIndexPool(512),
 	}
 	if DEBUG {
 		w.leakedEntities = make([]Entity, 0, 256)
@@ -92,8 +93,8 @@ func (w *World) Filter(idx int) *Filter {
 
 // NewEntity creates and returns new entity inside world.
 func (w *World) NewEntity() Entity {
-	var entity Entity = w.recycledEntities.Pop()
-	if entity >= 0 {
+	entity, ok := w.recycledEntities.Pop()
+	if ok {
 		// use recycled entity.
 		entityData := &w.Entities[entity]
 		entityData.Gen = -entityData.Gen
@@ -101,11 +102,14 @@ func (w *World) NewEntity() Entity {
 		// create new entity.
 		entity = Entity(len(w.Entities))
 		entityData := EntityData{
-			Gen:        1,
-			Components: make([]int32, w.componentsCount),
-			Mask:       make([]int, 0, w.componentsCount),
+			Gen:     1,
+			BitMask: NewBitSet(w.componentsCount),
+			Mask:    make([]uint16, 0, w.componentsCount),
 		}
 		w.Entities = append(w.Entities, entityData)
+		for _, p := range w.Pools {
+			p.New()
+		}
 	}
 	if DEBUG {
 		w.leakedEntities = append(w.leakedEntities, entity)
@@ -121,12 +125,11 @@ func (w *World) DelEntity(entity Entity) {
 	for i := len(entityData.Mask) - 1; i >= 0; i-- {
 		typeID := entityData.Mask[i]
 		w.UpdateFilters(entity, typeID, false)
-		itemIdx := &entityData.Components[typeID]
-		w.Pools[typeID].Recycle(*itemIdx)
-		*itemIdx = 0
+		w.Pools[typeID].Recycle(entity)
 		entityData.Mask = entityData.Mask[:i]
+		entityData.BitMask.Unset(typeID)
 	}
-	entityData.Mask = entityData.Mask[:0]
+	// entityData.Mask = entityData.Mask[:0]
 	gen++
 	if gen == 0 {
 		gen = 1
@@ -146,13 +149,13 @@ func (w *World) PackEntity(entity Entity) PackedEntity {
 func (w *World) UnpackEntity(packedEntity PackedEntity) (Entity, bool) {
 	entityData := &w.Entities[packedEntity.idx]
 	if packedEntity.gen != entityData.Gen {
-		return -1, false
+		return 0, false
 	}
 	return packedEntity.idx, true
 }
 
 // UpdateFilters updates all compatible with requested component filters.
-func (w *World) UpdateFilters(e Entity, componentType int, add bool) {
+func (w *World) UpdateFilters(e Entity, componentType uint16, add bool) {
 	entityData := &w.Entities[e]
 	includeList := w.filtersByInclude[componentType]
 	excludeList := w.filtersByExclude[componentType]
@@ -216,8 +219,8 @@ func (w *World) checkLeakedEntities() bool {
 }
 
 func (w *World) checkLeakedFilters() bool {
-	for _, f := range w.filters {
-		if f.lockCount > 0 {
+	for i := range w.filters {
+		if w.filters[i].lockCount > 0 {
 			return true
 		}
 	}

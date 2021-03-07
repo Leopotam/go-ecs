@@ -9,7 +9,7 @@ package ecs
 
 // Entity - ID of container with data,
 // cant be cached somehow, use PackedEntity instead!
-type Entity = int32
+type Entity = uint32
 
 // PackedEntity - packed version of Entity,
 // useful for saving as cached data somewhere.

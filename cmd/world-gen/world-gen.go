@@ -299,15 +299,15 @@ import (
 {{ range $worldIdx,$world := .Worlds }}
 {{- $worldName := $world.Name }}
 // New{{$worldName}} returns new instance of {{$worldName}}.
-func New{{$worldName}}() *{{$worldName}} {
+func New{{$worldName}}(entitiesCount uint32) *{{$worldName}} {
 	return &{{$worldName}}{
-		world: ecs.NewWorld([]ecs.ComponentPool{
+		world: ecs.NewWorld(entitiesCount, []ecs.ComponentPool{
 {{- range $i,$c := $world.Components }}
-		new{{$c.Name}}Pool(64, 64),
+		new{{$c.Name}}Pool(entitiesCount),
 {{- end}}
 		},[]ecs.Filter{
 {{- range $i,$f := $world.Filters }}
-		*ecs.NewFilter([]int{ {{ joinSlice $f.IncludeIndices }} }, []int{ {{ joinSlice $f.ExcludeIndices }} }, 64),
+		*ecs.NewFilter([]uint16{ {{ joinSlice $f.IncludeIndices }} }, []uint16{ {{ joinSlice $f.ExcludeIndices }} }, 512),
 {{- end}}
 		}),
 	}
@@ -336,69 +336,62 @@ func (w {{$worldName}}) UnpackEntity(packedEntity ecs.PackedEntity) (ecs.Entity,
 }
 
 {{ range $i,$c := $world.Components }}
-type pool{{$c.Name}} struct {
-	items    []{{$c.Type}}
-	recycled ecs.IndexPool
+type pool{{$c.Name}} []{{$c.Type}}
+
+func new{{$c.Name}}Pool(cap uint32) *pool{{$c.Name}} {
+	var pool pool{{$c.Name}} = make([]{{$c.Type}}, 0, cap)
+	return &pool
 }
 
-func new{{$c.Name}}Pool(cap int, recycledCap int) *pool{{$c.Name}} {
-	return &pool{{$c.Name}}{items: make([]{{$c.Type}}, 1, cap+1), recycled: *ecs.NewIndexPool(recycledCap)}
+func (p *pool{{$c.Name}}) New() {
+	*p = append(*p, {{$c.Type}}{})
 }
 
-func (p *pool{{$c.Name}}) new() int32 {
-	idx := p.recycled.Pop()
-	if idx == -1 {
-		idx = int32(len(p.items))
-		p.items = append(p.items, {{$c.Type}}{})
-	}
-	return idx
-}
-
-func (p *pool{{$c.Name}}) Recycle(idx int32) {
-	p.items[idx] = {{$c.Type}}{}
-	p.recycled.Push(idx)
+func (p *pool{{$c.Name}}) Recycle(idx uint32) {
+	(*p)[idx] = {{$c.Type}}{}
 }
 
 // Set{{$c.Name}} adds or returns exist {{$c.Name}} component on entity.
 func (w {{$worldName}}) Set{{$c.Name}}(entity ecs.Entity) *{{$c.Type}} {
 	entityData := &w.world.Entities[entity]
-	itemIdx := &entityData.Components[{{$i}}]
 	pool := w.world.Pools[{{$i}}].(*pool{{$c.Name}})
-	if *itemIdx == 0 {
-		*itemIdx = pool.new()
+	if !entityData.BitMask.Get({{$i}}) {
+		entityData.BitMask.Set({{$i}})
 		maskIdx := sort.Search(len(entityData.Mask), func(i int) bool { return entityData.Mask[i] > {{$i}} })
 		entityData.Mask = append(entityData.Mask, 0)
 		copy(entityData.Mask[maskIdx+1:], entityData.Mask[maskIdx:])
 		entityData.Mask[maskIdx] = {{$i}}
 		w.world.UpdateFilters(entity, {{$i}}, true)
 	}
-	return &pool.items[*itemIdx]
+	return &(*pool)[entity]
 }
 
 // Get{{$c.Name}} returns exist {{$c.Name}} component on entity or nil.
 func (w {{$worldName}}) Get{{$c.Name}}(entity ecs.Entity) *{{$c.Type}} {
-	idx := w.world.Entities[entity].Components[{{$i}}]
-	if idx == 0 {
+	if !w.world.Entities[entity].BitMask.Get({{$i}}) {
 		return nil
 	}
-	return &w.world.Pools[{{$i}}].(*pool{{$c.Name}}).items[idx]
+	return &(*w.world.Pools[{{$i}}].(*pool{{$c.Name}}))[entity]
+}
+
+// Get{{$c.Name}}Unsafe returns exist {{$c.Name}} component on entity or nil.
+func (w {{$worldName}}) Get{{$c.Name}}Unsafe(entity ecs.Entity) *{{$c.Type}} {
+	return &(*w.world.Pools[{{$i}}].(*pool{{$c.Name}}))[entity]
 }
 
 // Del{{$c.Name}} removes {{$c.Name}} component or do nothing.
 // If entity is empty after removing - it will be destroyed automatically.
 func (w {{$worldName}}) Del{{$c.Name}}(entity ecs.Entity) {
 	entityData := &w.world.Entities[entity]
-	itemIdx := &entityData.Components[{{$i}}]
-	if *itemIdx != 0 {
+	if entityData.BitMask.Get({{$i}}) {
 		if len(entityData.Mask) > 1 {
 			w.world.UpdateFilters(entity, {{$i}}, false)
-			pool := w.world.Pools[{{$i}}].(*pool{{$c.Name}})
-			pool.Recycle(*itemIdx)
-			*itemIdx = 0
+			w.world.Pools[{{$i}}].(*pool{{$c.Name}}).Recycle(entity)
 			maskLen := len(entityData.Mask)
 			maskIdx := sort.Search(maskLen, func(i int) bool { return entityData.Mask[i] >= {{$i}} })
 			copy(entityData.Mask[maskIdx:], entityData.Mask[maskIdx+1:])
 			entityData.Mask = entityData.Mask[:maskLen-1]
+			entityData.BitMask.Unset({{$i}})
 		} else {
 			w.DelEntity(entity)
 		}

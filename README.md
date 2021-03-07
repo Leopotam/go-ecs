@@ -6,7 +6,7 @@ Framework name is consonant with phrase "Let's GO", but with "ecs" acronym for "
 
 > **Important!** Ecs core is **not goroutine-friendly** and will never be! If you need multithread-processing - you should implement it on your side as part of ecs-system.
 
-> **Important!** In development stage, not recommended to production use!
+> **Important!** In development stage, not recommended for production use!
 
 # Socials
 [![discord](https://img.shields.io/discord/404358247621853185.svg?label=enter%20to%20discord%20server&style=for-the-badge&logo=discord)](https://discord.gg/5GZVde6)
@@ -113,18 +113,33 @@ struct Unit struct {
 // Filter declared in world scheme as "Units(Unit)".
 func (s *MySystem) Run(systems *ecs.Systems) {
 	world := systems.World("MyWorldName").(*MyWorld)
-	for it := world.Units().Iter(); it.Next(); {
-		unit := world.GetUnit(it.Entity())
+	for _, entity := world.Units().Entities() {
+		unit := world.GetUnit(entity)
+		// GetUnitUnsafe(entity) can be used here
+		// for performance reason due to Unit 100%
+		// present on entity.
 		fmt.Printf("user health: %v", unit.Health)
 	}
+}
+```
+> Important: If you know that filter entities list will be changed inside loop body (on add or remove component from constraint lists) filter should be locked before loop and unlocked after:
+```go
+func (s *MySystem) Run(systems *ecs.Systems) {
+	world := systems.World("MyWorldName").(*MyWorld)
+	for _, entity := world.Units().EntitiesWithLock() {
+		unit := world.GetUnit(entity)
+		fmt.Printf("user health: %v", unit.Health)
+	}
+	world.Units.Unlock()
+	// locked filter will be updated right after last Unlock() call.
 }
 ```
 
 ## Systems
 Container for systems, and shared data between them. It's main entry point for registration and execution for systems:
 ```go
-// Create world.
-world := NewGame1World()
+// Create world with reserved space for 100 entities.
+world := NewGame1World(128)
 // Create logic group for systems.
 systems := ecs.NewSystems(nil)
 systems.
@@ -159,7 +174,7 @@ const MyWorldName = "MyWorld"
 
 // startup init.
 shared := SharedData{ClientID: 1234567}
-world := NewMyWorld()
+world := NewMyWorld(128)
 // Keep SharedData instance inside ecs.Systems instance.
 systems := ecs.NewSystems(&shared)
 systems.
